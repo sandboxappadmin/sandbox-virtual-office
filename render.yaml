@@ -1,0 +1,25 @@
+services:
+  # Socket.io backend on Render
+  - type: web
+    name: virtual-office-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: CLIENT_URL
+        sync: false   # set to your Vercel URL after deploy
+
+  # Static frontend on Render (or use Vercel instead)
+  - type: static
+    name: virtual-office-client
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_SERVER_URL
+        sync: false   # set to your Render server URL
+      - key: VITE_ROOM_ID
+        value: main-office
