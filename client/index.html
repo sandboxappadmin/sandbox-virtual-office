@@ -3,78 +3,127 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Virtual Office</title>
+  <title>SNBX Virtual Office</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/styles/main.css" />
 </head>
 <body>
-  <div id="login-screen">
-    <div class="login-card">
-      <h1>🏢 Virtual Office</h1>
-      <p>Enter your name to join the office</p>
-      <input id="player-name" type="text" placeholder="Your name" maxlength="20" />
-      <div class="avatar-picker">
-        <label>Pick your avatar:</label>
-        <div class="avatars">
-          <div class="avatar-opt selected" data-idx="0">🧑</div>
-          <div class="avatar-opt" data-idx="1">👩</div>
-          <div class="avatar-opt" data-idx="2">🧔</div>
-          <div class="avatar-opt" data-idx="3">👱</div>
-          <div class="avatar-opt" data-idx="4">🧕</div>
-          <div class="avatar-opt" data-idx="5">🧑‍💼</div>
-        </div>
+
+<!-- ── Login Screen ───────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🏢</div>
+    <h1>SNBX Virtual Office</h1>
+    <p>Enter your name to join your team</p>
+    <input id="player-name" type="text" placeholder="Your name..." maxlength="20" autofocus />
+    <div class="avatar-picker">
+      <label>Choose avatar</label>
+      <div class="avatars">
+        <div class="avatar-opt selected" data-idx="0" title="Blue">🧑</div>
+        <div class="avatar-opt" data-idx="1" title="Purple">👩</div>
+        <div class="avatar-opt" data-idx="2" title="Teal">🧔</div>
+        <div class="avatar-opt" data-idx="3" title="Green">👱</div>
+        <div class="avatar-opt" data-idx="4" title="Orange">🧕</div>
+        <div class="avatar-opt" data-idx="5" title="Red">🧑‍💼</div>
       </div>
-      <button id="join-btn">Enter Office</button>
+    </div>
+    <button id="join-btn">Enter Office →</button>
+    <p class="hint">Use <kbd>WASD</kbd> or arrow keys to move · Press <kbd>V</kbd> to video call</p>
+  </div>
+</div>
+
+<!-- ── Game UI ─────────────────────────────────────────────────────────── -->
+<div id="game-container" style="display:none">
+  <div id="phaser-canvas"></div>
+
+  <!-- Zone banner -->
+  <div id="zone-banner"></div>
+
+  <!-- Proximity toast -->
+  <div id="proximity-toast" style="display:none"></div>
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <div id="topbar-left">
+      <span class="topbar-logo">🏢</span>
+      <span class="topbar-title">SNBX Virtual Office</span>
+    </div>
+    <div id="topbar-right">
+      <div id="player-list-toggle" onclick="togglePlayerList()">👥 <span id="pl-count">1</span></div>
     </div>
   </div>
 
-  <div id="game-container" style="display:none;">
-    <div id="phaser-canvas"></div>
-
-    <!-- Chat panel -->
-    <div id="chat-panel">
-      <div id="chat-header">
-        <span>💬 Office Chat</span>
-        <button id="chat-toggle">—</button>
-      </div>
-      <div id="chat-messages"></div>
-      <div id="chat-input-row">
-        <input id="chat-input" placeholder="Say something..." maxlength="200" />
-        <button id="chat-send">→</button>
-      </div>
+  <!-- Player list panel -->
+  <div id="player-panel">
+    <div class="panel-header">
+      <span>👥 In the Office</span>
+      <button class="panel-close" onclick="togglePlayerList()">✕</button>
     </div>
-
-    <!-- Player list -->
-    <div id="player-list">
-      <div id="pl-header">👥 In Office</div>
-      <div id="pl-body"></div>
-    </div>
-
-    <!-- Video call overlay -->
-    <div id="call-overlay" style="display:none;">
-      <div id="call-header">
-        <span id="call-title">📹 Video Call</span>
-        <button id="end-call-btn">End Call</button>
-      </div>
-      <div id="videos">
-        <div class="video-wrap">
-          <video id="local-video" autoplay muted playsinline></video>
-          <span class="video-label">You</span>
-        </div>
-        <div class="video-wrap">
-          <video id="remote-video" autoplay playsinline></video>
-          <span class="video-label" id="remote-name">Connecting...</span>
-        </div>
-      </div>
-      <div id="call-controls">
-        <button id="toggle-mic" title="Mute/Unmute">🎤</button>
-        <button id="toggle-cam" title="Camera On/Off">📷</button>
-      </div>
-    </div>
-
-    <!-- Proximity toast -->
-    <div id="proximity-toast" style="display:none;"></div>
+    <div id="pl-body"></div>
   </div>
 
-  <script type="module" src="/src/main.js"></script>
+  <!-- Chat panel -->
+  <div id="chat-panel">
+    <div class="panel-header">
+      <span>💬 Office Chat</span>
+      <button id="chat-toggle-btn" onclick="toggleChat()">—</button>
+    </div>
+    <div id="chat-messages"></div>
+    <div id="chat-input-row">
+      <input id="chat-input" placeholder="Message everyone..." maxlength="200" />
+      <button id="chat-send">↑</button>
+    </div>
+  </div>
+
+  <!-- Video call overlay — matches Image 3 style -->
+  <div id="call-overlay" style="display:none">
+    <div id="call-topbar">
+      <div id="call-title-row">
+        <span class="call-lock">🔴</span>
+        <span id="call-room-name">Design Review</span>
+      </div>
+      <div id="call-top-actions">
+        <button class="call-icon-btn" id="toggle-mic"  title="Mute">🎤</button>
+        <button class="call-icon-btn" id="toggle-cam"  title="Camera">📷</button>
+        <button class="call-icon-btn" id="end-call-btn" title="Leave" style="background:#c62828">✕</button>
+      </div>
+    </div>
+    <div id="videos">
+      <div class="video-tile" id="local-tile">
+        <video id="local-video" autoplay muted playsinline></video>
+        <div class="video-name-tag">You</div>
+        <div class="video-controls-mini">
+          <span class="mic-icon">🎤</span>
+        </div>
+      </div>
+      <div class="video-tile" id="remote-tile" style="display:none">
+        <video id="remote-video" autoplay playsinline></video>
+        <div class="video-name-tag" id="remote-name">Connecting...</div>
+      </div>
+    </div>
+    <div id="call-footer">
+      <span id="call-status">Connecting to peer...</span>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="/src/main.js"></script>
+<script>
+function togglePlayerList() {
+  const p = document.getElementById('player-panel');
+  p.classList.toggle('open');
+}
+function toggleChat() {
+  const msgs = document.getElementById('chat-messages');
+  const inp  = document.getElementById('chat-input-row');
+  const btn  = document.getElementById('chat-toggle-btn');
+  const collapsed = msgs.style.display === 'none';
+  msgs.style.display = collapsed ? '' : 'none';
+  inp.style.display  = collapsed ? '' : 'none';
+  btn.textContent    = collapsed ? '—' : '+';
+}
+</script>
 </body>
 </html>

@@ -5,123 +5,96 @@ let localStream = null;
 let peer = null;
 let currentCallTarget = null;
 
-const localVideo  = document.getElementById('local-video');
-const remoteVideo = document.getElementById('remote-video');
-const callOverlay = document.getElementById('call-overlay');
-const remoteName  = document.getElementById('remote-name');
-const toggleMic   = document.getElementById('toggle-mic');
-const toggleCam   = document.getElementById('toggle-cam');
-const endCallBtn  = document.getElementById('end-call-btn');
+const get = (id) => document.getElementById(id);
 
-// ── Get user media ──────────────────────────────────────────────────────────
 export async function getLocalStream() {
   if (localStream) return localStream;
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    if (localVideo) localVideo.srcObject = localStream;
-  } catch (err) {
-    console.warn('Camera/mic not available:', err.message);
+    const lv = get('local-video');
+    if (lv) lv.srcObject = localStream;
+  } catch (e) {
+    console.warn('No camera/mic:', e.message);
     localStream = null;
   }
   return localStream;
 }
 
-// ── Initiate call ───────────────────────────────────────────────────────────
 export async function startCall(targetId, targetName) {
-  if (peer) return; // already in call
+  if (peer) return;
   currentCallTarget = targetId;
   await getLocalStream();
-
   peer = new SimplePeer({ initiator: true, trickle: true, stream: localStream || undefined });
-
-  peer.on('signal', (offer) => {
-    socket.emit('rtc-offer', { targetId, offer });
-  });
-
-  peer.on('stream', (stream) => {
-    remoteVideo.srcObject = stream;
-  });
-
-  peer.on('close', () => cleanupCall());
-  peer.on('error', () => cleanupCall());
-
-  showCallUI(targetName);
+  _wireupPeer(peer, targetId, targetName);
+  peer.on('signal', (offer) => socket.emit('rtc-offer', { targetId, offer }));
 }
 
-// ── Receive offer ───────────────────────────────────────────────────────────
 export async function receiveOffer(fromId, fromName, offer) {
   if (peer) return;
   currentCallTarget = fromId;
   await getLocalStream();
-
   peer = new SimplePeer({ initiator: false, trickle: true, stream: localStream || undefined });
-
-  peer.on('signal', (answer) => {
-    socket.emit('rtc-answer', { targetId: fromId, answer });
-  });
-
-  peer.on('stream', (stream) => {
-    remoteVideo.srcObject = stream;
-  });
-
-  peer.on('close', () => cleanupCall());
-  peer.on('error', () => cleanupCall());
-
+  _wireupPeer(peer, fromId, fromName);
+  peer.on('signal', (answer) => socket.emit('rtc-answer', { targetId: fromId, answer }));
   peer.signal(offer);
-  showCallUI(fromName);
 }
 
-// ── Receive answer ──────────────────────────────────────────────────────────
-export function receiveAnswer(answer) {
-  if (peer) peer.signal(answer);
-}
+export function receiveAnswer(answer) { peer?.signal(answer); }
+export function receiveIceCandidate(c) { peer?.signal(c); }
 
-// ── ICE candidate ───────────────────────────────────────────────────────────
-export function receiveIceCandidate(candidate) {
-  if (peer) peer.signal(candidate);
-}
-
-// ── End call ─────────────────────────────────────────────────────────────────
 export function endCall() {
-  if (currentCallTarget) {
-    socket.emit('call-ended', { targetId: currentCallTarget });
-  }
-  cleanupCall();
+  if (currentCallTarget) socket.emit('call-ended', { targetId: currentCallTarget });
+  _cleanup();
 }
 
-function cleanupCall() {
-  if (peer) { peer.destroy(); peer = null; }
-  currentCallTarget = null;
-  if (remoteVideo) remoteVideo.srcObject = null;
-  if (callOverlay) callOverlay.style.display = 'none';
+function _wireupPeer(p, targetId, targetName) {
+  p.on('stream', (stream) => {
+    const rv = get('remote-video');
+    const rt = get('remote-tile');
+    const rn = get('remote-name');
+    if (rv) rv.srcObject = stream;
+    if (rt) rt.style.display = '';
+    if (rn) rn.textContent = targetName;
+    const cs = get('call-status');
+    if (cs) cs.textContent = `Connected with ${targetName}`;
+  });
+  p.on('close', _cleanup);
+  p.on('error', _cleanup);
+
+  // show overlay
+  const overlay = get('call-overlay');
+  const roomName = get('call-room-name');
+  if (overlay) overlay.style.display = 'flex';
+  if (roomName) roomName.textContent = `Call with ${targetName}`;
+  const cs = get('call-status');
+  if (cs) cs.textContent = 'Connecting...';
 }
 
-function showCallUI(name) {
-  remoteName.textContent = name || 'Remote';
-  callOverlay.style.display = 'block';
+function _cleanup() {
+  peer?.destroy(); peer = null; currentCallTarget = null;
+  const rv = get('remote-video'); if (rv) rv.srcObject = null;
+  const rt = get('remote-tile'); if (rt) rt.style.display = 'none';
+  const overlay = get('call-overlay'); if (overlay) overlay.style.display = 'none';
 }
 
-// ── Controls ────────────────────────────────────────────────────────────────
-let micOn = true;
-let camOn = true;
-
-toggleMic?.addEventListener('click', () => {
-  if (!localStream) return;
-  micOn = !micOn;
-  localStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
-  toggleMic.classList.toggle('muted', !micOn);
-  toggleMic.textContent = micOn ? '🎤' : '🔇';
+// Controls
+let micOn = true, camOn = true;
+document.addEventListener('DOMContentLoaded', () => {
+  get('toggle-mic')?.addEventListener('click', () => {
+    if (!localStream) return;
+    micOn = !micOn;
+    localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+    get('toggle-mic').textContent = micOn ? '🎤' : '🔇';
+    get('toggle-mic').classList.toggle('muted', !micOn);
+  });
+  get('toggle-cam')?.addEventListener('click', () => {
+    if (!localStream) return;
+    camOn = !camOn;
+    localStream.getVideoTracks().forEach(t => t.enabled = camOn);
+    get('toggle-cam').textContent = camOn ? '📷' : '🚫';
+    get('toggle-cam').classList.toggle('muted', !camOn);
+  });
+  get('end-call-btn')?.addEventListener('click', endCall);
 });
 
-toggleCam?.addEventListener('click', () => {
-  if (!localStream) return;
-  camOn = !camOn;
-  localStream.getVideoTracks().forEach((t) => (t.enabled = camOn));
-  toggleCam.classList.toggle('muted', !camOn);
-  toggleCam.textContent = camOn ? '📷' : '🚫';
-});
-
-endCallBtn?.addEventListener('click', endCall);
-
-export function isInCall() { return peer !== null; }
-export function getCurrentCallTarget() { return currentCallTarget; }
+export const isInCall = () => peer !== null;
